@@ -1,0 +1,25 @@
+vqcc-tools
+Copyright 2026 James Barlow
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The code and documentation in this repository were written with AI assistance (Claude, by Anthropic) under the
+repository owner's direction.
+
+Upstream work credited in this repository
+-----------------------------------------
+
+No third-party source files are vendored here. The following public, Apache-2.0 work from the Kaggle competition
+"Google Quantum AI - Verifiable Quantum Circuit Compilation" is re-implemented, loaded at run time, or read as data;
+each use is also credited at the point of use in the code:
+
+- scripts/d3_invsqrt_model.py re-implements the arithmetic of Syed Asad Ali's exact invsqrt model `whole_model.py`
+  (Apache-2.0, Copyright 2026 Syed Asad Ali). The author's code is not included or executed; the published model
+  JSON is read as data.
+- tools/dfthc-refit/dfthc_refit.py: the projected L-BFGS refit follows the idea of anazemcev's public Apache-2.0
+  complete-H projected L-BFGS refit, re-implemented.
+- tools/dfthc-refit loads Lera's (marculera) emitter `tensorqrom.py` (Apache-2.0) unmodified from a user-supplied
+  directory at run time; it is not included. That emitter credits mrmeows' cached-product emitter and Heliosli's
+  signed scratch. gauge.py adapts the emitter's borrowed-top-bit handling, as documented in gauge.py.
+- scripts/chem_word_table_registry.json lists public chemistry word tables with their first public authors.
+- The official verifiers and kickmix (Qualtran, Apache-2.0, Google LLC) are used but not included.

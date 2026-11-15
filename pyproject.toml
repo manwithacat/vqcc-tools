@@ -1,0 +1,17 @@
+[project]
+name = "vqcc-tools"
+version = "0.1.0"
+description = "Circuit analysis (QHDL) and chemistry tooling for the Kaggle VQCC competition"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+chem = ["scipy>=1.11"]
+refit = ["scipy>=1.11", "torch>=2.2"]
+test = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "tools/dfthc-refit"]
+python_files = ["test_*.py"]
