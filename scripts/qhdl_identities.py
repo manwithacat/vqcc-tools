@@ -220,7 +220,7 @@ def main():
     if a.run:
         out.mkdir(parents=True, exist_ok=True)
         if not kmx.exists():   # text form for detectors that read .kmx
-            subprocess.run(["/Volumes/SSD/Kaggle/tools/kickmix-venv/bin/python", "-c",
+            subprocess.run([os.environ.get("QHDL_KICKMIX_PYTHON", sys.executable), "-c",
                             "import kickmix,sys;kickmix.Circuit.from_file(sys.argv[1]).to_file(sys.argv[2],format='kmx')",
                             str(circ), str(kmx)], check=True)
     rc = 0
