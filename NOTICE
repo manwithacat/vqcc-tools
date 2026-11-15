@@ -23,3 +23,6 @@ each use is also credited at the point of use in the code:
   signed scratch. gauge.py adapts the emitter's borrowed-top-bit handling, as documented in gauge.py.
 - scripts/chem_word_table_registry.json lists public chemistry word tables with their first public authors.
 - The official verifiers and kickmix (Qualtran, Apache-2.0, Google LLC) are used but not included.
+- tools/kmsim/kmsim.py is Asterios Panoras's kmsim (Apache-2.0), copied unmodified from the public QCC Atlas toolkit
+  (https://www.kaggle.com/code/asteriospanoras/qcc-atlas-toolkit-in-notebook-chemistry-refit). It is a zero-dependency
+  NumPy simulator for the kickmix text format, kept as an independent fallback checker.

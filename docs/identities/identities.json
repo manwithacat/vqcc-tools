@@ -1,0 +1,381 @@
+{
+ "schema": "README.md (identities section)",
+ "updated": "2026-11-15",
+ "identities": [
+  {
+   "id": "ID-001",
+   "name": "Measure-first",
+   "summary": "A wire that is only written (X, CX into it, CCX into it) and then measured by HMR can be measured first: each CCX(a,b->t) becomes CZ(a,b), each CX(c->t) becomes Z(c), each X(t) a sign, all conditioned on the outcome.",
+   "validity": "exact",
+   "lhs": [
+    "CX q0 q2",
+    "CCX q0 q1 q2",
+    "HMR q2 b0"
+   ],
+   "rhs": [
+    "HMR q2 b0",
+    "Z q0 if b0",
+    "CZ q0 q1 if b0"
+   ],
+   "fixture_zero": [],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "t is not read (control, phase, swap) between the first write and the HMR",
+    "the HMR bit is not used between the new and the old HMR position",
+    "fix-ups see their controls at the original times (applied in place)"
+   ],
+   "tasks": [
+    "invsqrt",
+    "dqi",
+    "chemistry"
+   ],
+   "credit": "Kirill Tymchishin (written proof for the CCX case) and Md. Hamid Hosen (measure-first rewrite of write-only runs); found independently at invsqrt q21 by Asterios Panoras",
+   "evidence": [
+    "HW-26 site 1 (invsqrt 1ba197b02771, hosted PASS)",
+    "HW-27 (DQI 8ef5b6791625, 8 sites, hosted PASS)"
+   ],
+   "detector": "python3 scripts/qhdl.py measure-first -c {circuit}",
+   "emitter": "python3 scripts/qhdl.py measure-first -c {circuit} --apply --out {out}/measure_first.kmb",
+   "status": "tool-backed"
+  },
+  {
+   "id": "ID-002",
+   "name": "Measure-out through a free wire",
+   "summary": "A product a*b added into a mixed wire and later cancelled by a second CCX is computed once into a free clean wire, copied in and out with CX, and the clean wire is measured instead of running the second CCX; CZ(a,b) on outcome 1 repairs the phase.",
+   "validity": "exact",
+   "lhs": [
+    "CCX q0 q1 q2",
+    "CX q2 q4",
+    "CCX q0 q1 q2"
+   ],
+   "rhs": [
+    "CCX q0 q1 q3",
+    "CX q3 q2",
+    "CX q2 q4",
+    "CX q3 q2",
+    "HMR q3 b0",
+    "CZ q0 q1 if b0"
+   ],
+   "fixture_zero": [
+    "q3"
+   ],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "a free wire that is clean (zero) over the whole stretch",
+    "a and b unchanged between the two CCX",
+    "the measurement bit is fresh (written nowhere else and read only by the fix-up)"
+   ],
+   "tasks": [
+    "invsqrt",
+    "dqi"
+   ],
+   "credit": "measurement-based uncomputation is Gidney (2018); this placement and the scripted rewrite are ours (HW-26 site 2)",
+   "evidence": [
+    "HW-26 site 2 (invsqrt 1ba197b02771, hosted PASS)"
+   ],
+   "detector": "python3 scripts/qhdl.py measure-out -c {circuit} --dry-run",
+   "emitter": "python3 scripts/qhdl.py measure-out -c {circuit} --out {out}/measure_out.kmb",
+   "status": "tool-backed"
+  },
+  {
+   "id": "ID-003",
+   "name": "Measurement-based uncomputation of a temporary AND",
+   "summary": "A clean temporary t = a*b is uncomputed by HMR(t) and CZ(a,b) on outcome 1 instead of a second CCX.",
+   "validity": "exact",
+   "lhs": [
+    "CCX q0 q1 q2",
+    "CX q2 q3",
+    "CCX q0 q1 q2"
+   ],
+   "rhs": [
+    "CCX q0 q1 q2",
+    "CX q2 q3",
+    "HMR q2 b0",
+    "CZ q0 q1 if b0"
+   ],
+   "fixture_zero": [
+    "q2"
+   ],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "t starts clean (zero)",
+    "a and b unchanged between compute and uncompute",
+    "the measurement bit is fresh (written nowhere else and read only by the fix-up)"
+   ],
+   "tasks": [
+    "invsqrt",
+    "dqi",
+    "chemistry"
+   ],
+   "credit": "Gidney (2018), 'Halving the cost of quantum addition'; standard",
+   "evidence": [
+    "used throughout the public frontier",
+    "HW-06 and HW-07 (borrowed-wire and multi-input variants)"
+   ],
+   "detector": "",
+   "emitter": "",
+   "status": "catalogued"
+  },
+  {
+   "id": "ID-004",
+   "name": "Quadratic-rank merge (formal)",
+   "summary": "Several CCX on one target, with only free gates in between and the target never read, add a quadratic form; its cross-term rank r needs only r/2 products (Dickson). Example: ab + ac = a(b + c).",
+   "validity": "exact",
+   "lhs": [
+    "CCX q0 q1 q3",
+    "CCX q0 q2 q3"
+   ],
+   "rhs": [
+    "CX q2 q1",
+    "CCX q0 q1 q3",
+    "CX q2 q1"
+   ],
+   "fixture_zero": [],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "unconditional X/CX/SWAP and CCX only in the window",
+    "the target never used as a control or swapped"
+   ],
+   "tasks": [
+    "invsqrt",
+    "dqi",
+    "chemistry"
+   ],
+   "credit": "standard GF(2) algebra (Dickson's theorem); an exact rule exists in our research code",
+   "evidence": [
+    "0 hits on HW-25 and on Syed Asad Ali's 47b318383a03: the public circuits are at this formal floor"
+   ],
+   "detector": "",
+   "emitter": "",
+   "status": "catalogued"
+  },
+  {
+   "id": "ID-005",
+   "name": "Semantic AND-merge (reachable values)",
+   "summary": "As ID-004, but the net toggle of a write-only segment on wire t is fitted on reachable values: if it equals L1*L2 + L3 with affine forms in the other wires at some point of the segment, all its writes become one CCX on in-place parity pivots plus free CX/X. Can merge products across a measured-out and recomputed control.",
+   "validity": "reachable",
+   "lhs": [],
+   "rhs": [],
+   "fixture_zero": [],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "t only written in the segment",
+    "the fit is from sampled reachable states: every emitted circuit must pass fdiff --whole and the official verifier",
+    "all merged products must be available (as affine forms of live values) at one cut; values that change between the products block a common-cut merge"
+   ],
+   "tasks": [
+    "invsqrt"
+   ],
+   "credit": "Jeff Emerson (public AND-merge cut on Syed Asad Ali's 44-qubit invsqrt, 28.071 notebook, Apache-2.0); our scanner re-implements the idea",
+   "evidence": [
+    "9339eeccc3b2: local official PASS 75,082.59 (-0.117%)"
+   ],
+   "detector": "python3 scripts/c20_and_merge_scan.py {kmx} {out}/and_merge",
+   "emitter": "python3 scripts/c20_and_merge_scan.py {kmx} {out}/and_merge_emit --emit",
+   "status": "tool-backed"
+  },
+  {
+   "id": "ID-006",
+   "name": "Product retention instead of recompute",
+   "summary": "A product that is uncomputed and later recomputed with the same operands can be kept on a free wire over the gap, saving the uncompute/recompute pair (width permitting).",
+   "validity": "reachable",
+   "lhs": [],
+   "rhs": [],
+   "fixture_zero": [],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "operand values equal at both sites",
+    "a free wire over the gap without raising the peak width"
+   ],
+   "tasks": [
+    "invsqrt",
+    "dqi",
+    "chemistry"
+   ],
+   "credit": "retention passes in the public frontier (Syed Asad Ali's retained products; Hayato Hikawa's retention pass on DQI); detector ours",
+   "evidence": [
+    "DQI 4b350932b039 (Hayato Hikawa)"
+   ],
+   "detector": "python3 scripts/qhdl.py retain -c {circuit}",
+   "emitter": "",
+   "status": "tool-backed"
+  },
+  {
+   "id": "ID-007",
+   "name": "Controlled swap from CX-CCX-CX",
+   "summary": "CSWAP(c; a, b) = CX(b->a) CCX(c, a -> b) CX(b->a): one Toffoli-like either way, but matching it lets a normaliser fold CCX patterns into CSWAPs and back.",
+   "validity": "exact",
+   "lhs": [
+    "CX q2 q1",
+    "CCX q0 q1 q2",
+    "CX q2 q1"
+   ],
+   "rhs": [
+    "CSWAP q0 q1 q2"
+   ],
+   "fixture_zero": [],
+   "toffoli_delta": 0,
+   "qubit_delta": 0,
+   "preconditions": [],
+   "tasks": [
+    "invsqrt",
+    "dqi",
+    "chemistry"
+   ],
+   "credit": "standard (Fredkin gate decomposition); used publicly in WCao24's invsqrt normaliser (47 CCX + 4 HMR -> 44 CSWAP)",
+   "evidence": [],
+   "detector": "",
+   "emitter": "",
+   "status": "catalogued"
+  },
+  {
+   "id": "ID-008",
+   "name": "Conditionally clean ancilla",
+   "summary": "A wire that is clean whenever a control is 1 can serve as an ancilla for a gate controlled on it, without being globally clean.",
+   "validity": "reachable",
+   "lhs": [],
+   "rhs": [],
+   "fixture_zero": [],
+   "toffoli_delta": 0,
+   "qubit_delta": -1,
+   "preconditions": [
+    "clean on the controlling subspace, proved on reachable states"
+   ],
+   "tasks": [
+    "dqi",
+    "invsqrt"
+   ],
+   "credit": "Khattar and Gidney, conditionally clean ancillae",
+   "evidence": [
+    "HW-09"
+   ],
+   "detector": "",
+   "emitter": "",
+   "status": "catalogued"
+  },
+  {
+   "id": "ID-009",
+   "name": "Dead write removal",
+   "summary": "A write whose value can never reach a measurement phase, an output or a later control is deleted (a CCX into it saves a Toffoli).",
+   "validity": "reachable",
+   "lhs": [],
+   "rhs": [],
+   "fixture_zero": [],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "the written value is unobservable on every reachable path (no later read; any HMR's phase cancelled)"
+   ],
+   "tasks": [
+    "invsqrt"
+   ],
+   "credit": "Asterios Panoras's dead-write fix on the 46-qubit invsqrt (republished by Heliosli)",
+   "evidence": [
+    "invsqrt e46d90c36d1b (Heliosli's republication)"
+   ],
+   "detector": "",
+   "emitter": "",
+   "status": "catalogued"
+  },
+  {
+   "id": "ID-010",
+   "name": "Splice where two circuits agree",
+   "summary": "Two circuits for the same task that agree on every wire (or byte for byte) over a stretch can be cut there and joined, keeping each side's cheaper part; a free Clifford phase fix may be needed.",
+   "validity": "reachable",
+   "lhs": [],
+   "rhs": [],
+   "fixture_zero": [],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "equal wire values (and record values) at the cut on all reachable states",
+    "phase debt at the cut repaired by free gates"
+   ],
+   "tasks": [
+    "invsqrt",
+    "dqi"
+   ],
+   "credit": "ours (HW-22, HW-25); the joined circuits' authors are credited per use",
+   "evidence": [
+    "HW-22",
+    "HW-25"
+   ],
+   "detector": "",
+   "emitter": "",
+   "status": "catalogued"
+  },
+  {
+   "id": "ID-011",
+   "name": "Phase fold through a CCX pair (CZ)",
+   "summary": "CCX(a,b,t); CZ(c,t); CCX(a,b,t) = CCZ(a,b,c); CZ(c,t): the phase c*(t XOR a*b) equals c*t XOR a*b*c and the CCX pair restores t, so two Toffolis become one CCZ. Exact even when t starts dirty.",
+   "validity": "exact",
+   "lhs": [
+    "CCX q0 q1 q2",
+    "CZ q3 q2",
+    "CCX q0 q1 q2"
+   ],
+   "rhs": [
+    "CCZ q0 q1 q3",
+    "CZ q3 q2"
+   ],
+   "fixture_zero": [],
+   "toffoli_delta": -1,
+   "qubit_delta": 0,
+   "preconditions": [
+    "a, b unchanged between the two CCX",
+    "t touched only by diagonal gates (Z, CZ) between them",
+    "each CZ(c,t) in between adds one CCZ(a,b,c) at its own time"
+   ],
+   "tasks": [
+    "dqi",
+    "invsqrt",
+    "chemistry"
+   ],
+   "credit": "Kirill Tymchishin (seven phase folds in DQI, 'Quantum Circuits | Conditional Uncompute Audit', kirilltym/quantum-circuits-conditional-uncompute-audit)",
+   "evidence": [
+    "Kirill Tymchishin's notebook: seven folds, seven static Toffoli-like gates saved relative to his V5"
+   ],
+   "detector": "python3 scripts/qhdl_phase_fold.py {kmx}",
+   "emitter": "",
+   "status": "tool-backed"
+  },
+  {
+   "id": "ID-012",
+   "name": "Phase fold through a CCX pair (Z)",
+   "summary": "CCX(a,b,t); Z(t); CCX(a,b,t) = Z(t); CZ(a,b): the phase t XOR a*b needs no Toffoli at all. Same family as ID-011 (a diagonal gate conjugated by CCX picks up a*b).",
+   "validity": "exact",
+   "lhs": [
+    "CCX q0 q1 q2",
+    "Z q2",
+    "CCX q0 q1 q2"
+   ],
+   "rhs": [
+    "Z q2",
+    "CZ q0 q1"
+   ],
+   "fixture_zero": [],
+   "toffoli_delta": -2,
+   "qubit_delta": 0,
+   "preconditions": [
+    "a, b unchanged between the two CCX",
+    "t touched only by diagonal gates between them"
+   ],
+   "tasks": [
+    "dqi",
+    "invsqrt",
+    "chemistry"
+   ],
+   "credit": "generalisation of Kirill Tymchishin's phase fold (ID-011); standard conjugation algebra",
+   "evidence": [],
+   "detector": "python3 scripts/qhdl_phase_fold.py {kmx}",
+   "emitter": "",
+   "status": "tool-backed"
+  }
+ ]
+}
