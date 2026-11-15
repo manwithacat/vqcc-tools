@@ -127,6 +127,71 @@ def _width(n_ops, q_s, op_s, z_s, rows):
                 live_peak_ops_after=int((prof2 == peak2).sum()))
 
 
+def plan(path, rows, include_cx_only=False):
+    """Edit script for the measure-first rewrite of each run (exact for every input and outcome).
+
+    For a run on wire w from its first write s to its HMR at h (bit b): insert `HMR qw bb` before s; replace each write
+    in place (CCX qa qx qw -> CZ qa qx if bb; CX qc qw -> Z qc if bb; X qw -> NEG if bb), so every fix-up sees its
+    controls at the time of the original write; delete the HMR at h. A run is refused if any op strictly between s
+    and h reads or writes bit b (moving the measurement would change what that op sees). Conditioned runs are not
+    planned. Runs without a Toffoli save nothing and are skipped unless include_cx_only."""
+    k = K.read(str(path))
+    dec = K.Decoder(k)
+    t = k.op_types.astype(np.uint8)
+    cond = (((t & np.uint8(0x80)) != 0) & (t != np.uint8(K.PUSH_CONDITION))) | (K.condition_depth(k.op_types) > 0)
+    hb, hc = (t & 0x40) > 0, (t & 0x80) > 0
+    bit_w = np.full(len(t), -1, np.int64); bit_w[hb] = k.stream('b0')
+    bit_c = np.full(len(t), -1, np.int64); bit_c[hc] = k.stream('bc')
+    ops, qs, _ = K.op_qubits(k)
+    lines, done, refused = [], [], []
+    for r in rows:
+        if r.get('ccx_conditioned') or (not r['ccx'] and not include_cx_only):
+            continue
+        w, s, h = r['wire'], r['first_write'], r['hmr']
+        hmr = dec.text(h).split()
+        if hmr[0] != 'HMR' or hmr[1] != f'q{w}' or cond[h]:
+            refused.append(dict(r, reason=f'op {h} is not an unconditioned HMR on q{w}: {dec.text(h)}')); continue
+        b = int(hmr[2][1:])
+        inside = slice(s + 1, h)
+        if (bit_w[inside] == b).any() or (bit_c[inside] == b).any():
+            refused.append(dict(r, reason=f'bit b{b} is used between op {s} and op {h}')); continue
+        js = np.unique(ops[(qs == w) & (ops >= s) & (ops < h)])
+        edits = [f'insert {s} => HMR q{w} b{b}']
+        ok = True
+        for j in js:
+            j = int(j); op = dec.text(j).split()
+            if cond[j]:
+                ok = False; break
+            if op[0] == 'CCX' and op[3] == f'q{w}':
+                edits.append(f'replace {j} => CZ {op[1]} {op[2]} if b{b}')
+            elif op[0] == 'CX' and op[2] == f'q{w}':
+                edits.append(f'replace {j} => Z {op[1]} if b{b}')
+            elif op[0] == 'X' and op[1] == f'q{w}':
+                edits.append(f'replace {j} => NEG if b{b}')
+            else:
+                ok = False; break
+        if not ok:
+            refused.append(dict(r, reason=f'op on q{w} in the run is not a plain write')); continue
+        edits.append(f'delete {h}')
+        lines += [f'# measure-first: q{w}, ops {s}..{h}, bit b{b}: {r["ccx"]} CCX -> CZ, {r["cx"]} CX -> Z, {r["x"]} X -> sign']
+        lines += edits
+        done.append(dict(r, bit=b))
+    return '\n'.join(lines) + '\n', done, refused
+
+
+def apply_rewrite(path, out, rows, include_cx_only=False):
+    """Plan and write the rewritten circuit through `qhdl edit`; returns a summary."""
+    import qhdl_edit as ED
+    script, done, refused = plan(path, rows, include_cx_only)
+    if not done:
+        return dict(applied=0, refused=refused, out=None)
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(str(out) + '.edits.txt').write_text(script)
+    summary = ED.edit_file(path, script, out)
+    return dict(applied=len(done), toffolis_removed=sum(r['ccx'] for r in done), refused=refused, out=str(out),
+                edit_script=str(out) + '.edits.txt', **{k_: v for k_, v in summary.items() if k_ in ('old_sha256', 'new_sha256', 'ops_before', 'ops_after')})
+
+
 def v_measure_first(api, a):
     import qhdl_envelope as E
     led = E.Ledger()
@@ -148,6 +213,18 @@ def v_measure_first(api, a):
              f"measure-first saves {res['toffoli_saving_static']} static Toffolis ({res['cx_to_z']} CX become "
              f"conditioned Z). Live-width peak {res.get('live_peak')} -> {res.get('live_peak_after')} if every run's "
              f"wire is freed at its first write ({res.get('runs_overlapping_peak')} runs touch a peak op). Static model")
+    if getattr(a, 'apply', False):
+        if not a.out:
+            raise api.QhdlError('measure-first --apply needs --out X.kmb', 'add --out')
+        app = apply_rewrite(src, a.out, res['rows'], a.include_cx_only)
+        led.earn('static', 'rewrite emitted through qhdl edit; not yet certified (run the task certificate)')
+        claim = (f"{s12}: measure-first applied to {app['applied']} run(s), {app.get('toffolis_removed', 0)} static "
+                 f"Toffolis removed, {len(app['refused'])} refused; wrote {app['out']} (uncertified)")
+        nxt = [api.cmd('fdiff', '-c', s12, '-c2', app['out'], '--whole')] if app['out'] else []
+        return E.Envelope(led, claim, tier='static', domain='edit plan from the exact pattern match',
+                          evidence=app.get('edit_script') or api.rel(ev), rerun=api.cmd('measure-first', '-c', s12,
+                          '--apply', '--out', a.out), tool_sha=api.tool_sha(), circuit_sha=sha, facts=app,
+                          rows=app['refused'][:20], parts=[], next_cmds=nxt)
     rows = sorted(res['rows'], key=lambda r: -r['ccx'])[: (None if a.all else 20)]
     return E.Envelope(led, claim, tier='static', domain='whole circuit, static', evidence=api.rel(ev),
                       rerun=api.cmd('measure-first', '-c', s12), tool_sha=api.tool_sha(), circuit_sha=sha,
@@ -160,6 +237,9 @@ def qhdl_register(subparsers, api):
                               description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('-c', '--circuit', required=True, help='.kmb path or sha prefix')
     p.add_argument('--all', action='store_true', help='print every row')
+    p.add_argument('--apply', action='store_true', help='write the rewritten circuit (runs with a Toffoli) to --out')
+    p.add_argument('--out', help='output .kmb for --apply')
+    p.add_argument('--include-cx-only', action='store_true', help='with --apply, also rewrite runs without a Toffoli')
     p.set_defaults(fn=lambda a: v_measure_first(api, a))
 
 

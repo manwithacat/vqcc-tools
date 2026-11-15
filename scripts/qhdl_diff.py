@@ -265,6 +265,22 @@ def credit(row):
 
 
 # ---------------------------------------------------------------- DQI
+def workbench_command():
+    """How to run the fork's workbench: its launcher if it can run (it needs the fork's .venv or WORKBENCH_PYTHON),
+    else workbench.py beside it (or QHDL_WORKBENCH pointing at workbench.py) with this interpreter; None if absent."""
+    wb = Path(WORKBENCH)
+    if wb.suffix == '.py' and wb.is_file():
+        return [sys.executable, str(wb)]
+    launcher_ok = wb.is_file() and os.access(wb, os.X_OK) and (
+        os.environ.get('WORKBENCH_PYTHON') or (wb.parent / '../../.venv/bin/python').exists())
+    if launcher_ok:
+        return [str(wb)]
+    script = wb.with_name('workbench.py')
+    if script.is_file():
+        return [sys.executable, str(script)]
+    return None
+
+
 def regions_for(api, path, sha12, force=False):
     """Region tree JSON from `workbench summarize` (static Toffolis per INFO_TAG region); cached under work/_diff/."""
     d = Path(api.WORK) / '_diff' / 'regions'
@@ -272,10 +288,16 @@ def regions_for(api, path, sha12, force=False):
     out = d / f'{sha12}.json'
     if out.exists() and not force:
         return json.loads(out.read_text()), out
-    r = subprocess.run([WORKBENCH, 'summarize', str(path), '--out', str(out)], capture_output=True, text=True, timeout=1800)
+    cmd = workbench_command()
+    if cmd is None:
+        raise api.QhdlError(f'workbench not found for {sha12}: no launcher at {WORKBENCH} and no workbench.py beside it',
+                            'set QHDL_VIEWER_DIR to a kickmix-macos tools/circuit-viewer checkout (or QHDL_WORKBENCH to '
+                            'its launcher or workbench.py)')
+    r = subprocess.run(cmd + ['summarize', str(path), '--out', str(out)], capture_output=True, text=True, timeout=1800)
     if r.returncode != 0 or not out.exists():
-        raise api.QhdlError(f'workbench summarize failed for {sha12}: {r.stderr.strip()[-300:]}',
-                            f'run {WORKBENCH} summarize {path} --out FILE')
+        detail = (r.stderr.strip() or r.stdout.strip())[-300:]      # the fork's launcher reports on stdout
+        raise api.QhdlError(f'workbench summarize failed for {sha12}: {detail}',
+                            f'run {" ".join(cmd)} summarize {path} --out FILE')
     return json.loads(out.read_text()), out
 
 

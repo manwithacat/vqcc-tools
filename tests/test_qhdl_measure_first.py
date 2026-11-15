@@ -54,6 +54,33 @@ class MeasureFirst(unittest.TestCase):
         r = self.scan([op(CCX, 0, 1, 8), op(CCX, 0, 1, 8), op(HMR, 8, b0=0)])
         self.assertLessEqual(r['live_peak_after'], r['live_peak'])
 
+    # ---- the rewrite emitter (qhdl measure-first --apply)
+    def plan(self, ops):
+        src = build(self.dir / 'p.kmb', ops, REGS, num_qubits=12, num_bits=4)
+        return src, M.plan(src, M.scan(src)['rows'])
+
+    def test_emitter_rewrites_each_write_in_place(self):
+        _, (script, done, refused) = self.plan(
+            [op(CCX, 0, 1, 8), op(CX, 2, 8), op(X, 8), op(CCX, 3, 4, 8), op(HMR, 8, b0=0)])
+        lines = [l for l in script.splitlines() if l and not l.startswith('#')]
+        self.assertEqual(lines, ['insert 0 => HMR q8 b0', 'replace 0 => CZ q0 q1 if b0', 'replace 1 => Z q2 if b0',
+                                 'replace 2 => NEG if b0', 'replace 3 => CZ q3 q4 if b0', 'delete 4'])
+        self.assertEqual((len(done), refused), (1, []))
+
+    def test_emitter_refuses_when_the_bit_is_used_inside_the_run(self):
+        # an op between the first write and the HMR is conditioned on the HMR's bit b0
+        _, (_, done, refused) = self.plan(
+            [op(CCX, 0, 1, 8), op(PUSH, bc=0), op(CX, 2, 3), op(POP), op(CCX, 4, 5, 8), op(HMR, 8, b0=0)])
+        self.assertEqual(done, [])
+        self.assertIn('bit b0 is used', refused[0]['reason'])
+
+    def test_emitter_output_has_no_run_left(self):
+        src, _ = self.plan([op(CCX, 0, 1, 8), op(CX, 2, 8), op(CCX, 3, 4, 8), op(HMR, 8, b0=0)])
+        out = self.dir / 'out.kmb'
+        app = M.apply_rewrite(src, out, M.scan(src)['rows'])
+        self.assertEqual((app['applied'], app['toffolis_removed']), (1, 2))
+        self.assertEqual(M.scan(out)['toffoli_saving_static'], 0)
+
 
 if __name__ == '__main__':
     unittest.main()
